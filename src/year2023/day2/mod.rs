@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 const DOCUMENT_TEST: &str = include_str!("games-ex.txt");
 const DOCUMENT_REAL: &str = include_str!("games.txt");
 
+#[derive(Eq, Hash, PartialEq, Debug)]
 enum Color {
     Red,
     Green,
@@ -69,6 +72,14 @@ fn game_id_sum(game_list: &str) -> u32 {
         .sum()
 }
 
+fn game_power(game_list: &str) -> u32 {
+    game_list
+        .lines()
+        .map(max_of_colors)
+        .map(|max_by_color| max_by_color.values().product::<u32>())
+        .sum()
+}
+
 fn game_possible(game: &str) -> Result<(), String> {
     let (_, plays) = attempt_split_once(game, ':');
 
@@ -78,9 +89,49 @@ fn game_possible(game: &str) -> Result<(), String> {
         .try_for_each(|group| Group::from_group_str(group.trim()).is_possible())
 }
 
+fn max_of_colors(game: &str) -> HashMap<Color, u32> {
+    let (_, plays) = attempt_split_once(game, ':');
+
+    let mut groups_by_color: HashMap<Color, Vec<Group>> = vec![
+        (Color::Red, vec![]),
+        (Color::Green, vec![]),
+        (Color::Blue, vec![]),
+    ]
+    .into_iter()
+    .collect();
+
+    let mut max_by_color: HashMap<Color, u32> = HashMap::new();
+
+    for group in plays
+        .split(';')
+        .flat_map(|play| play.split(','))
+        .map(|group| Group::from_group_str(group.trim()))
+    {
+        let Some(color_list) = groups_by_color.get_mut(&group.color) else {
+            panic!("Could not find key '{:?}' in color groups.", group.color);
+        };
+
+        color_list.push(group);
+    }
+
+    for (color, groups) in groups_by_color {
+        let maximum = groups
+            .iter()
+            .max_by_key(|g| g.amount)
+            .map_or(0, |group| group.amount);
+
+        max_by_color.insert(color, maximum);
+    }
+
+    max_by_color
+}
+
 pub fn main() {
     println!("{}", game_id_sum(DOCUMENT_TEST));
     println!("{}", game_id_sum(DOCUMENT_REAL));
+
+    println!("{}", game_power(DOCUMENT_TEST));
+    println!("{}", game_power(DOCUMENT_REAL));
 }
 
 #[cfg(test)]
@@ -93,9 +144,9 @@ mod tests {
         assert_eq!(game_id_sum(DOCUMENT_REAL), 2162);
     }
 
-    // #[test]
-    // fn part2() {
-    //     assert_eq!(calval_sum(DOCUMENT_TEST_2), 281);
-    //     assert_eq!(calval_sum(DOCUMENT_REAL), 54_249);
-    // }
+    #[test]
+    fn part2() {
+        assert_eq!(game_power(DOCUMENT_TEST), 2286);
+        assert_eq!(game_power(DOCUMENT_REAL), 72_513);
+    }
 }
